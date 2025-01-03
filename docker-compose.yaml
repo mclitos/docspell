@@ -1,0 +1,99 @@
+version: '3.8'
+
+services:
+
+  restserver:
+    image: docspell/restserver:latest
+    container_name: docspell-restserver
+    restart: unless-stopped
+    ports:
+      - "7880:7880"
+    environment:
+      - TZ=Europe/Madrid
+      - DOCSPELL_SERVER_INTERNAL__URL=http://docspell-restserver:7880
+      - DOCSPELL_SERVER_ADMIN__ENDPOINT_SECRET=admin123
+      - DOCSPELL_SERVER_AUTH_SERVER__SECRET=
+      - DOCSPELL_SERVER_BACKEND_JDBC_PASSWORD=dbpass   #Cambiar Contraseña
+      - DOCSPELL_SERVER_BACKEND_JDBC_URL=jdbc:postgresql://db:5432/dbname
+      - DOCSPELL_SERVER_BACKEND_JDBC_USER=dbuser   #Cambiar usuario si es conveniente
+      - DOCSPELL_SERVER_BIND_ADDRESS=0.0.0.0
+      - DOCSPELL_SERVER_FULL__TEXT__SEARCH_ENABLED=true
+      - DOCSPELL_SERVER_FULL__TEXT__SEARCH_SOLR_URL=http://docspell-solr:8983/solr/docspell
+      - DOCSPELL_SERVER_INTEGRATION__ENDPOINT_ENABLED=true
+      - DOCSPELL_SERVER_INTEGRATION__ENDPOINT_HTTP__HEADER_ENABLED=true
+      - DOCSPELL_SERVER_INTEGRATION__ENDPOINT_HTTP__HEADER_HEADER__VALUE=integration-password123   #Cambiar Contraseña
+      - DOCSPELL_SERVER_BACKEND_SIGNUP_MODE=open
+      - DOCSPELL_SERVER_BACKEND_SIGNUP_NEW__INVITE__PASSWORD=
+      - DOCSPELL_SERVER_BACKEND_ADDONS_ENABLED=false
+    depends_on:
+      - solr
+      - db
+
+  joex:
+    image: docspell/joex:latest
+    container_name: docspell-joex
+    restart: unless-stopped
+    environment:
+      - TZ=America/Costa_Rica
+      - DOCSPELL_JOEX_APP__ID=joex1
+      - DOCSPELL_JOEX_PERIODIC__SCHEDULER_NAME=joex1
+      - DOCSPELL_JOEX_SCHEDULER_NAME=joex1
+      - DOCSPELL_JOEX_BASE__URL=http://docspell-joex:7878
+      - DOCSPELL_JOEX_BIND_ADDRESS=0.0.0.0
+      - DOCSPELL_JOEX_FULL__TEXT__SEARCH_ENABLED=true
+      - DOCSPELL_JOEX_FULL__TEXT__SEARCH_SOLR_URL=http://docspell-solr:8983/solr/docspell
+      - DOCSPELL_JOEX_JDBC_PASSWORD=dbpass    #Cambiar Contraseña por la que puso 
+      - DOCSPELL_JOEX_JDBC_URL=jdbc:postgresql://db:5432/dbname
+      - DOCSPELL_JOEX_JDBC_USER=dbuser  #Cambiar usuario por el que puso
+      - DOCSPELL_JOEX_ADDONS_EXECUTOR__CONFIG_RUNNER=docker,trivial
+      - DOCSPELL_JOEX_CONVERT_HTML__CONVERTER=weasyprint
+    ports:
+      - "7878:7878"
+    depends_on:
+      - solr
+      - db
+
+  consumedir:
+    image: docspell/dsc:latest
+    container_name: docspell-consumedir
+    command:
+      - dsc
+      - "-d"
+      - "http://docspell-restserver:7880"
+      - "watch"
+      - "--delete"
+      - "-ir"
+      - "--not-matches"
+      - "**/.*"
+      - "--header"
+      - "Docspell-Integration:integration-password123"
+      - "/opt/docs"
+    restart: unless-stopped
+    volumes:
+      - ./docs:/opt/docs
+    depends_on:
+      - restserver
+
+  db:
+    image: postgres:16.1
+    container_name: postgres_db
+    restart: unless-stopped
+    volumes:
+      - ./docspell-postgres_data:/var/lib/postgresql/data/
+    environment:
+      - POSTGRES_USER=dbuser  #Cambiar usuario por la que puso 
+      - POSTGRES_PASSWORD=dbpass #Cambiar Contraseña por la que puso 
+      - POSTGRES_DB=dbname
+
+  solr:
+    image: solr:9
+    ports:
+     - "8983:8983"
+    volumes:
+      - data:/var/solr
+    command:
+      - solr-precreate
+      - gettingstarted
+      
+volumes:
+  data:  
